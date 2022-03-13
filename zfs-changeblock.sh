@@ -43,8 +43,21 @@ function checkWarn {
 }
 
 function checkContinue {
+    printf "${RED}"
     read -p "$1, continue? [y] " -n 1 -r
-    echo
+    printf "${NC}\n"
+    if [[ $REPLY =~ ^[Yy]$ ]]
+    then
+        return 0
+    else
+        return 1
+    fi
+}
+
+function checkYesNo {
+    printf "${RED}"
+    read -p "$1, continue? [y] " -n 1 -r
+    printf "${NC}\n"
     if [[ $REPLY =~ ^[Yy]$ ]]
     then
         return 0
@@ -69,12 +82,12 @@ while true; do
     FREE=$(zfs get -p -H -o value available "${VOLUME%/*}") #check parent dataset
     NEED=$(zfs get -p -H -o value logicalused $VOLUME)
     [[ $FREE -gt $NEED ]]
-    checkError "check free space result: free=$(($FREE/1024/1024/1024)) need=$(($NEED/1024/1024/1024))"
+    checkError "check space: free=$(($FREE/1024/1024/1024))Gb need=$(($NEED/1024/1024/1024))Gb"
 
     # stop VM
     while true; do
         # found VM
-        VMID=$(echo $VOLUME | grep -oE "[0-9]{3}-disk-0" | grep -oE "[0-9]{3}")
+        VMID=$(echo $VOLUME | grep -oE "[0-9]{3}-disk-[0-9]+" | grep -oE "[0-9]{3}")
         checkWarn "VM $VMID found" "VM $VMID NOT found" || break
         # check VM status
         eval "qm list | awk ' \$1==\"$VMID\" && \$3==\"stopped\" ' | grep -q \"\" "
@@ -110,17 +123,17 @@ while true; do
     # work
     eval "zfs create -s -b $BS -V $VOLSIZE -o compression=$COMPRESS $VOLUME-new"
     checkError "zfs create new volume"
-    eval "time dd if=/dev/zvol/$VOLUME bs=1024k status=none | pv | dd of=/dev/zvol/$VOLUME-new bs=1024k status=none"
+    eval "time dd if=/dev/zvol/$VOLUME bs=1024k status=none conv=sparse | pv | dd of=/dev/zvol/$VOLUME-new bs=1024k status=none conv=sparse"
     #eval "time dd if=/dev/zvol/$VOLUME of=/dev/zvol/$VOLUME-new bs=1024k"
     checkError "dd copy to new volume"
     eval "zfs rename $VOLUME $VOLUME-old"
-    checkError "zfs $VOLUME $VOLUME-old"
+    checkError "zfs rename $VOLUME $VOLUME-old"
     eval "zfs rename $VOLUME-new $VOLUME"
     checkError "zfs rename $VOLUME-new $VOLUME"
 
     # Destroy old volume
     echo "Start VM VMID and check that everything works"
-    checkContinue "Destroy old volume $VOLUME-old?? " || break
+    checkContinue "Destroy old volume $VOLUME-old" || break
     eval "zfs destroy -r $VOLUME-old"
     checkError "zfs destroy -r $VOLUME-old"
 done
