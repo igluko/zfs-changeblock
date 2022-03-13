@@ -43,11 +43,9 @@ function checkWarn {
 }
 
 function checkContinue {
-    printf "${RED}"
     read -p "$1, continue? [y] " -n 1 -r
-    printf "${NC}\n"
-    if [[ $REPLY =~ ^[Yy]$ ]]
-    then
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
         return 0
     else
         return 1
@@ -55,15 +53,16 @@ function checkContinue {
 }
 
 function checkYesNo {
+    while true; do
     printf "${RED}"
-    read -p "$1, continue? [y] " -n 1 -r
+    read -p "$1? [y/n] " -n 1 -r
     printf "${NC}\n"
-    if [[ $REPLY =~ ^[Yy]$ ]]
-    then
-        return 0
-    else
-        return 1
-    fi
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            return 0
+        elif [[ $REPLY =~ ^[Nn]$ ]]; then
+            return 1
+        fi
+    done
 }
 
 while true; do
@@ -116,7 +115,7 @@ while true; do
 
         # read new properties
         read -e -p "Enter new block size: " -i "32k" BS
-        read -e -p "Enter new compression size: " -i "zstd" COMPRESS
+        read -e -p "Enter new compression: " -i "zstd" COMPRESS
         checkContinue "$BS_OLD-$COMPRESS_OLD -> $BS-$COMPRESS" && break
     done
 
@@ -133,9 +132,13 @@ while true; do
 
     # Destroy old volume
     echo "Start VM VMID and check that everything works"
-    checkContinue "Destroy old volume $VOLUME-old" || break
-    eval "zfs destroy -r $VOLUME-old"
-    checkError "zfs destroy -r $VOLUME-old"
+    if checkYesNo "Destroy old volume $VOLUME-old"
+    then
+        eval "zfs destroy -r $VOLUME-old"
+        checkError "zfs destroy -r $VOLUME-old"
+    fi
+    echo "Done."
+    break
 done
 
 # read -p "Please Enter a Message: `echo $'\n> '`" message
